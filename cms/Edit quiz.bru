@@ -1,0 +1,19 @@
+meta {
+  name: Edit quiz
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/6
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+      "question": "Why not 2? ",
+      "answer": "Because yes!",
+      "keywords": ["Idiot"]
+  }
+}
