@@ -4,6 +4,7 @@ const router = exprsess.Router();
 const quizs = require('../data/quizs');
 
 
+//Get all quizs
 router.get("/", (req, res) => {
 const{keyword} = req.query;
 if(!keyword){
@@ -17,6 +18,7 @@ res.json(filteredquizs);
 });
 
 
+//Get quiz by id 
 router.get("/:id", (req, res) => {
     const quizId = Number(req.params.id);
 
