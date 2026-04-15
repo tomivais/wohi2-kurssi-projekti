@@ -20,7 +20,7 @@ Step 2: Having a REST API
 ## 3 week (week 16)
 Step 3:Adding the DB and ORM
 Before: Data stored in a JS object
-After: Data stored in MySQ. 
+After: Data stored in MySQL. 
 - We do that with Prisma.
 
 
