@@ -1,5 +1,8 @@
-const quizs = [
-    {
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+
+const seedQuizs = [
+  {
     id:1,
     question: "Why use javascript?",
     answer: "JavaScript is a versatile programming language that allows you to create interactive and dynamic web pages. It is widely used for front-end development to enhance user experience by enabling features like form validation, animations, and real-time updates. Additionally, JavaScript can be used on the server-side with Node.js, making it a popular choice for full-stack development. Its large ecosystem of libraries and frameworks also makes it easier to build complex applications efficiently.",
@@ -27,4 +30,33 @@ const quizs = [
     keywords: ["programming", "learning", "coding"],
     },
 ];
-module.exports = quizs;
+
+async function main() {
+  await prisma.quiz.deleteMany();
+  await prisma.keyword.deleteMany();
+
+  for (const quiz of seedQuizs) {
+    await prisma.quiz.create({
+      data: {
+       question: quiz.question, 
+        answer: quiz.answer,    
+        keywords: {
+          connectOrCreate: quiz.keywords.map((kw) => ({
+            where: { name: kw },
+            create: { name: kw }, 
+          })),
+        },
+      },
+    });
+  }
+
+  console.log("Seed data inserted successfully");
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());
+
