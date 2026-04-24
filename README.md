@@ -24,7 +24,18 @@ After: Data stored in MySQL.
 - We do that with Prisma.
 
 
-## Next step?? (4-8)
+## 4 week (week 17)
+Authentication
+
+1. New dependencies: 
+bcrypt + jsonwebtoken
+2. User model in Prisma schema
+3. Auth routes: –/api/auth/register –/api/auth/login
+4. Auth middleware to verify JWT tokens
+5. Protect POST, PUT, DELETE routes
+
+
+## Next step?? (5-8)
 
 
 
