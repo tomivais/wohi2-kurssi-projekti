@@ -1,7 +1,11 @@
 const exprsess = require('express');
 const router = exprsess.Router();
 const prisma = require('../lib/prisma');
+const authenticate = require("../middleware/auth");
+const isOwner = require("../middleware/isOwner");
 
+// Apply authentication to ALL routes in this router
+router.use(authenticate)
 
 function formatQuiz(quiz){
     return {
@@ -10,7 +14,6 @@ function formatQuiz(quiz){
         keywords: quiz.keywords.map((kw) => kw.name),
     };
 }
-
 
 //Get all quizs
 router.get("/", async (req, res) => {
@@ -60,6 +63,7 @@ router.post("/", async (req, res) => {
   const newQuiz = await prisma.quiz.create({
     data: {
       question, answer,
+      userId: req.user.userId,
       keywords: {
         connectOrCreate: keywordsArray.map((kw) => ({
           where: { name: kw }, create: { name: kw },
@@ -74,7 +78,7 @@ router.post("/", async (req, res) => {
 
 
 //edit quiz
-router.put("/:id", async (req, res) => {
+router.put("/:id", isOwner, async (req, res) => {
     const quizId = Number(req.params.id);   
     const {question, answer, keywords} = req.body;
    
@@ -108,7 +112,7 @@ router.put("/:id", async (req, res) => {
 });
 
 //delete quiz
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", isOwner, async (req, res) => {
     const quizId = Number(req.params.id);
 
     const quiz = await prisma.quiz.findUnique({
