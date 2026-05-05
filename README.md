@@ -35,7 +35,19 @@ bcrypt + jsonwebtoken
 5. Protect POST, PUT, DELETE routes
 
 
-## Next step?? (5-8)
+## 5week (week 18-19)
+Advanced features
+
+What we are doing this week
+Adding a frontend client which requires backend modifications:
+- Serving static files (HTML, CSS, JS) from our server
+- Some small API modifications (e.g., pagination)
+- API: include the author’s name
+- Pagination
+- Serve the frontend from Express
+New extra features
+- Answer (new model + endpoints)
+Image upload (multer + new field)
 
 
 
