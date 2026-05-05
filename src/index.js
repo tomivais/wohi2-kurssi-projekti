@@ -2,15 +2,17 @@ const express=require('express');
 
 const app = express();
 const quizsRouter = require("./routes/quizs") //Tuodaaan reitit
-const prisma = require("./lib/prisma"); // Tuodaan Prisma-yhteys
 const authRouter = require("./routes/auth");
-
+const prisma = require("./lib/prisma"); // Tuodaan Prisma-yhteys
+const path = require("path");
 const PORT = process.env.PORT || 3000; // Määritetään portti
+
+app.use(express.static(path.join(__dirname, "..", "public"))); 
 
 app.use(express.json());
 
 //Routes eli reutit 
-app.use("/api/quizs", quizsRouter);
+app.use("/api/questions", quizsRouter);
 app.use("/api/auth", authRouter);
 
 app.get("/", (req, res) => {

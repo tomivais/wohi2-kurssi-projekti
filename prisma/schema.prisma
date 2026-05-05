@@ -19,6 +19,7 @@ model User{
   password String @db.VarChar(255)
   name     String @db.VarChar(100)
   quiz    Quiz[]
+  answers Answer[]
 }
 
 model Quiz {
@@ -28,7 +29,9 @@ model Quiz {
   question    String    @db.VarChar(255)
   answer     String  @db.Text
   keywords Keyword[]
+  imageUrl String? @db.VarChar(255)
   date DateTime @default(now())
+  answers Answer[]
   @@map("quiz")
 }
 
@@ -39,4 +42,17 @@ model Keyword {
   quiz Quiz[]
   date DateTime @default(now())
   @@map("keywords")
+}
+
+ model Answer{
+  id Int @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  userId Int
+  user     User @relation(fields: [userId], references: [id])
+  quizId Int
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete:Cascade)
+
+  answer String @db.VarChar(250)
+  @@unique([userId,quizId])
+  @@map("answers")
 }

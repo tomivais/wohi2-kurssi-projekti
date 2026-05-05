@@ -5,13 +5,14 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}
+  url: {{baseUrl}}?page=1&limit=5
   body: none
   auth: none
 }
 
 params:query {
-  : 
+  page: 1
+  limit: 5
 }
 
 headers {
