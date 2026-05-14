@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { NotFoundError, ForbiddenError } = require("../lib/errors");
 
 
 async function isOwner (req, res, next) {
@@ -8,12 +9,11 @@ async function isOwner (req, res, next) {
       include: { keywords: true },
     });
     if (!quiz) {
-      return res.status(404).json({ message: "Quiz not found" });
+      throw new NotFoundError("Quiz not found");
     }
     if (quiz.userId !== req.user.userId) {
-      return res.status(403).json({ error: "You can only modify your own quiz" });
+      throw new ForbiddenError("You can only modify your own quiz");
     }
-    // Attach the record to the request so the route handler can reuse it
     req.quiz = quiz;
     next();
   

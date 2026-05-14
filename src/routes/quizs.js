@@ -5,6 +5,15 @@ const authenticate = require("../middleware/auth");
 const isOwner = require("../middleware/isOwner");
 const multer = require("multer");
 const path = require("path");
+const { NotFoundError } = require('../lib/errors');
+const {z} = require("zod");
+const { tr } = require('zod/v4/locales');
+
+const QuizInput = z.object({
+    question: z.string().min(1, "Question is required"),
+    answer: z.string().min(1, "Answer is required"),
+    keywords: z.union([z.string(), z.array(z.string())]).optional(),
+});
 
 
 const storage = multer.diskStorage({
@@ -86,7 +95,8 @@ const [filterdQuizs, total] = await Promise.all([prisma.quiz.findMany({
 
 
 //Get quiz by id 
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res, next) => {
+  try{
   const quizId = Number(req.params.id);
   const quiz = await prisma.quiz.findUnique({
     where: { id: quizId },
@@ -94,55 +104,69 @@ router.get("/:id", async (req, res) => {
   });
 
   if (!quiz) {
-    return res.status(404).json({ 
-		message: "quiz not found" 
-    });
-  }
+      return res.status(404).json({ message: "Quiz not found" });
+    }
+
   res.json(formatQuiz(quiz));
-});
-
-//Create new quiz
-router.post("/", upload.single("image"), async (req, res) => {
-  const { question, answer, keywords } = req.body;
-
-  if (!question || !answer ) {
-    return res.status(400).json({ msg: 
-	"Question and answer are mandatory" });
   }
-
-  const keywordsArray = Array.isArray(keywords) ? keywords : [];
-  const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
-  const newQuiz = await prisma.quiz.create({
-    data: {
-      question, answer,
-      userId: req.user.userId,
-      keywords: {
-        connectOrCreate: keywordsArray.map((kw) => ({
-          where: { name: kw }, create: { name: kw },
-        })), },
-    },
-    include: { keywords: true, user: true },
-  });
-
-  res.status(201).json(formatQuiz(newQuiz));
+  catch (error) {
+    // Tämä siirtää virheen errorHandler.js:ään
+    next(error); 
+  }
 });
 
+
+// Create new quiz
+router.post("/", upload.single("image"), async (req, res, next) => {
+ // Tämä vaati toimiakseen try catch -rakenteen, jotta Zod-virheet saatiin käsiteltyä. 
+  try {
+    // 1. Validoidaan body Zodilla
+    // Huom: Jos lähetät keywordsit form-datana, ne saattavat vaatia JSON.parse() käsittelyn
+    const { question, answer, keywords } = QuizInput.parse(req.body);
+
+    const keywordsArray = Array.isArray(keywords) ? keywords : [];
+    
+    // 2. Määritetään kuvan polku, jos kuva on ladattu
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
+    // 3. Tallennetaan tietokantaan
+    const newQuiz = await prisma.quiz.create({
+      data: {
+        question,
+        answer,
+        imageUrl, // Lisätty tallennus tietokantaan
+        userId: req.user.userId,
+        keywords: {
+          connectOrCreate: keywordsArray.map((kw) => ({
+            where: { name: kw },
+            create: { name: kw },
+          })),
+        },
+      },
+      include: { keywords: true, user: true },
+    });
+
+    res.status(201).json(formatQuiz(newQuiz));
+  } catch (error) {
+    // 4. Ohjataan virhe errorHandlerille (ZodError, PrismaError, jne.)
+    next(error);
+  }
+});
 
 
 //edit quiz
-router.put("/:id", isOwner,upload.single("image"), async (req, res) => {
-    const quizId = Number(req.params.id);   
-    const {question, answer, keywords} = req.body;
+router.put("/:id", isOwner,upload.single("image"), async (req, res, next) => {
+  try {
+    const quizId = Number(req.params.id);
+    // Validointi Zod-kirjastolla
+    const { question, answer, keywords } = QuizInput.parse(req.body);   
    
     const existingQuiz = await prisma.quiz.findUnique({ where: { id: quizId } });
   
     if (!existingQuiz) {
-    return res.status(404).json({ message: "Quiz not found" });
-  }
-    if(!question || !answer|| !keywords){
-        return res.status(400).json({message: "Question, answer or keywords are required" });
+          throw new NotFoundError("Quiz not found");
     }
-
+   
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
     const keywordsArray = Array.isArray(keywords) ? keywords : [];
 
@@ -161,7 +185,10 @@ router.put("/:id", isOwner,upload.single("image"), async (req, res) => {
         include: { keywords: true, user: true },
     });
     res.json(formatQuiz(updatedQuiz));
-
+  }
+  catch (error) {
+    next(error);
+  }
 });
 
 //delete quiz
@@ -174,7 +201,7 @@ router.delete("/:id", isOwner, async (req, res) => {
     });
 
     if(!quiz){
-        return res.status(404).json({message: "Quiz not found wortunately"});
+        throw new NotFoundError("Quiz not found unfortunately");
     }
 
     await prisma.quiz.delete({
@@ -187,49 +214,73 @@ router.delete("/:id", isOwner, async (req, res) => {
 });
 
 
-// Tämän osalta on hyödynnetty tekoälyä, koska en muussa tapauksessa olisi saanut toteutetta vastausten lisäystä kysymyksiin. 
-router.post("/:id/play", async (req, res) => {
+// Tämän osalta on hyödynnetty tekoälyä vastauksen tallennuksen ja laskennan toteuttamiseen.
+router.post("/:id/play", async (req, res, next) => {
   const { answer } = req.body;
   const quizId = parseInt(req.params.id);
   const userId = req.user ? parseInt(req.user.userId) : null;
 
-  if (!answer || isNaN(quizId)) {
-    return res.status(400).json({ msg: "Answer and valid Quiz ID are mandatory" });
-  }
-
   try {
+    // 1. Validointi: Onko vastaus annettu ja ID numero?
+    if (!answer || isNaN(quizId)) {
+      throw new ValidationError("Answer is mandatory");
+    }
+
+    // Upsert vaatii kirjautuneen käyttäjän, jotta userId_quizId -tunniste toimii.
+    if (!userId) {
+      throw new UnauthorizedError("You must be logged in to submit an answer");
+    }
+
+    // 2. Haetaan kysely tietokannasta vastauksen tarkistusta varten
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId }
     });
 
     if (!quiz) {
-      return res.status(404).json({ msg: "Quiz not found" });
+      throw new NotFoundError("Quiz not found");
     }
 
+    // 3. Tarkistetaan onko vastaus oikein
     const isCorrect = answer.trim().toLowerCase() === quiz.answer.trim().toLowerCase();
 
- 
-    await prisma.answer.create({
-      data: {
+    // 4. Tallennetaan tai päivitetään vastaus (Upsert)
+    const savedAnswer = await prisma.answer.upsert({
+      where: {
+        userId_quizId: {
+          userId: userId,
+          quizId: quizId
+        }
+      },
+      update: {
+        answer: answer.toString()
+      },
+      create: {
         answer: answer.toString(),
-        user: { connect: { id: userId } },
-        quiz: { connect: { id: quizId } }
+        userId: userId,
+        quizId: quizId
       }
     });
 
-    res.json({
+    // Lasketaan kuinka monta vastausta tähän kyselyyn on yhteensä annettu
+    const answerCount = await prisma.answer.count({
+      where: { quizId: quizId }
+    });
+
+    // 5. Palautetaan tulos
+    res.status(200).json({
+      id: savedAnswer.id,
+      quizId: quizId,
       correct: isCorrect,
-      correctAnswer: quiz.answer // Lähetetään oikea vastaus, jos käyttäjä tiesi väärin
+      correctAnswer: quiz.answer,
+      answerCount: answerCount, // Palautetaan vastausten kokonaismäärä
+      createdAt: savedAnswer.createdAt
     });
 
   } catch (error) {
-    if (error.code === 'P2002') {
-      return res.status(400).json({ msg: "You have already answered this quiz" });
-    }
-
-    console.error("Play error:", error);
-    res.status(500).json({ msg: "Error processing your answer" });
+    // Kaikki virheet ohjataan error.js:n mukaiselle globaalille käsittelijälle
+    next(error);
   }
 });
+
 
 module.exports = router;

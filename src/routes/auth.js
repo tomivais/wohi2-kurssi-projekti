@@ -3,20 +3,22 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../lib/prisma");
-
 const SECRET = process.env.JWT_SECRET;
+const { UnauthorizedError} = require("../lib/errors");   
+const { ca, tr } = require("zod/v4/locales");
 
 // Post
-router.post("/register", async (req, res) => {
+router.post("/register", async (req, res, next) => {
+    try {
     const { email, password, name } = req.body;
 
     if (!email || !password || !name) {
-        return res.status(400).json({ error: "Email, password and name are required" });
+        throw new ValidationError("Email, password and name are required");
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-        return res.status(409).json({ error: "Email already in use" });
+        throw new ConflictError("Email already registered");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -34,25 +36,30 @@ router.post("/register", async (req, res) => {
     res.status(201).json({ 
         message: "User registered successfully",
         token });
+
+    }
+    catch (error) {
+        next(error);}
     });
 
-router.post("/login", async (req, res) => {
+router.post("/login", async (req, res, next) => {
+    try{
     const { email, password } = req.body;
 
     if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required" });
+        throw new ValidationError("Email and password are required");
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        throw new UnauthorizedError ("Invalid credentials");
     }   
 
     const isValid = await bcrypt.compare(password, user.password);
 
     if (!isValid) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        throw new UnauthorizedError("Invalid credentials");
     }
     
     const token = jwt.sign({ userId: user.id, email: user.email }, SECRET, { expiresIn: "1h" });
@@ -61,6 +68,10 @@ router.post("/login", async (req, res) => {
         message: "Login successful",
         token,
     });
+}
+ catch (error) {
+    next(error);
+     }
 });
 
 module.exports = router; 

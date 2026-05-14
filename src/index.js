@@ -1,28 +1,12 @@
-const express=require('express');
-
-const app = express();
-const quizsRouter = require("./routes/quizs") //Tuodaaan reitit
-const authRouter = require("./routes/auth");
-const prisma = require("./lib/prisma"); // Tuodaan Prisma-yhteys
-const path = require("path");
+const app = require("./app");
 const PORT = process.env.PORT || 3000; // Määritetään portti
-
-app.use(express.static(path.join(__dirname, "..", "public"))); 
-
-app.use(express.json());
-
-//Routes eli reutit 
-app.use("/api/questions", quizsRouter);
-app.use("/api/auth", authRouter);
-
-app.get("/", (req, res) => {
-    res.status(404).json({
-        message: "Not found"});
-});
+const logger = require("./lib/logger");
+const prisma = require("./lib/prisma");
 
 
+//Start the server
 app.listen(PORT,()=>{
-console.log(`Server is running on http://localhost:${PORT}`);
+logger.info({port:PORT}, `Server is running on http://localhost:${PORT}`);
 });
 
 // Graceful shutdown

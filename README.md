@@ -45,6 +45,7 @@ Adding a frontend client which requires backend modifications:
 - API: include the author’s name
 - Pagination
 - Serve the frontend from Express
+
 New extra features
 - Answer (new model + endpoints)
 Image upload (multer + new field)
