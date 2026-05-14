@@ -49,5 +49,11 @@ New extra features
 - Answer (new model + endpoints)
 Image upload (multer + new field)
 
+## 6week (week 20)
+Testing, Logging & Error Handling.
 
+What we are doing this week: 
+- Adding standardized error handling
+- Adding logging of HTTP requests
+- Adding tests to check functionality and prevent dev errors
 
