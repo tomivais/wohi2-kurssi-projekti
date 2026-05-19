@@ -4,8 +4,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../lib/prisma");
 const SECRET = process.env.JWT_SECRET;
-const { UnauthorizedError} = require("../lib/errors");   
-const { ca, tr } = require("zod/v4/locales");
+const { ConflictError, UnauthorizedError } = require("../lib/errors");
 
 // Post
 router.post("/register", async (req, res, next) => {
