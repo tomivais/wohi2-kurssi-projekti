@@ -57,3 +57,10 @@ What we are doing this week:
 - Adding logging of HTTP requests
 - Adding tests to check functionality and prevent dev errors
 
+## Week 7 (week 20) 
+Deployment and production
+- Using Docker in the project
+- Deploying the project on Rails
+
+## Project Step 8
+- Finalizing the project
