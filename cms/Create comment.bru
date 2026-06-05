@@ -1,0 +1,26 @@
+meta {
+  name: Create comment
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/14/comments
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{Token}}
+}
+
+body:json {
+  {
+    "comments": "En pidä koirista."
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

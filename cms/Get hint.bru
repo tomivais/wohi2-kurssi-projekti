@@ -1,0 +1,20 @@
+meta {
+  name: Get hint
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/22/hint
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{Token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

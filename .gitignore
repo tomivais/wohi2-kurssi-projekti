@@ -6,3 +6,4 @@ node_modules/
 
 puplic/uploads/*
 !public/uploads/.gitkeep
+backup-2026-06-05.sql

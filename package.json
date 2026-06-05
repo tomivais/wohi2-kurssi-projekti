@@ -7,12 +7,14 @@
     "dev": "node --watch src/index.js",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
+    "db:backup": "node database-backup.js",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",
-"test": "vitest run --globals",
-  "test:watch": "vitest",
-  "test:setup": "DATABASE_URL=mysql://root:password@localhost:3306/cms_test npx prisma migrate deploy",
-"test:coverage": "vitest run --coverage --globals"  },
+    "test": "vitest run --globals",
+    "test:watch": "vitest",
+    "test:setup": "DATABASE_URL=mysql://root:password@localhost:3306/cms_test npx prisma migrate deploy",
+    "test:coverage": "vitest run --coverage --globals"
+  },
   "prisma": {
     "seed": "node prisma/seed.js"
   },
@@ -26,11 +28,14 @@
   "license": "MIT",
   "description": "",
   "dependencies": {
+    "@googleapis/drive": "^20.2.0",
     "@prisma/client": "^6.19.3",
     "bcrypt": "^6.0.0",
     "express": "^4.18.2",
+    "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "pino-pretty": "^13.1.3",

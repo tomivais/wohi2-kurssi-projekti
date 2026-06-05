@@ -18,20 +18,25 @@ model User{
   email    String @unique @db.VarChar(255)
   password String @db.VarChar(255)
   name     String @db.VarChar(100)
+  imageUrl String? @db.VarChar(255)
   quiz    Quiz[]
   answers Answer[]
-}
+  comments Comment[]
+  }
 
 model Quiz {
   userId Int
   user     User @relation(fields: [userId], references: [id])
   id       Int       @id @default(autoincrement())
-  question    String    @db.VarChar(255)
-  answer     String  @db.Text
+  question String    @db.VarChar(255)
+  answer String  @db.Text
+  hint String?    @db.VarChar(255)
   keywords Keyword[]
   imageUrl String? @db.VarChar(255)
   date DateTime @default(now())
   answers Answer[]
+  comments Comment[]
+
   @@map("quiz")
 }
 
@@ -56,3 +61,16 @@ model Keyword {
   @@unique([userId,quizId])
   @@map("answers")
 }
+
+model Comment{
+  id Int @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  userId Int
+  user     User @relation(fields: [userId], references: [id])
+  quizId Int
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete:Cascade)
+
+  comments String @db.VarChar(250)
+  @@map("comments")
+}
+

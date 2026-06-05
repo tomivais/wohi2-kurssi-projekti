@@ -12,12 +12,13 @@ const { tr } = require('zod/v4/locales');
 const QuizInput = z.object({
     question: z.string().min(1, "Question is required"),
     answer: z.string().min(1, "Answer is required"),
+    hint: z.string().optional(),
     keywords: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
 
 const storage = multer.diskStorage({
-  destinatuon: path.join(__dirname,"..","..","public","uploads"),
+  destination: path.join(__dirname,"..","..","public","uploads"),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const newName= `${Date.now()}${Math.random().toString(36).slice(2, 8)}${ext}`;
@@ -94,6 +95,31 @@ const [filterdQuizs, total] = await Promise.all([prisma.quiz.findMany({
 });
 
 
+//Get hint by id 
+router.get("/:id/hint", async (req, res, next) => {
+  try{
+  const quizId = Number(req.params.id);
+  const quiz = await prisma.quiz.findUnique({
+    where: { id: quizId }  });
+
+  if (!quiz) {
+      return res.status(404).json({ message: "Quiz not found" });
+    }
+  
+    // 2. Tarkistetaan onko vihje tyhjä, null vai undefined
+    if (!quiz.hint || quiz.hint.trim() === "") {
+      return res.json({ hint: "Ei vihjettä" });
+    }
+
+    // 3. Jos vihje löytyy, palautetaan se
+    res.json({ hint: quiz.hint });
+  }
+  catch (error) {
+    // Tämä siirtää virheen errorHandler.js:ään
+    next(error); 
+  }
+});
+
 //Get quiz by id 
 router.get("/:id", async (req, res, next) => {
   try{
@@ -115,14 +141,13 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-
 // Create new quiz
 router.post("/", upload.single("image"), async (req, res, next) => {
  // Tämä vaati toimiakseen try catch -rakenteen, jotta Zod-virheet saatiin käsiteltyä. 
   try {
     // 1. Validoidaan body Zodilla
     // Huom: Jos lähetät keywordsit form-datana, ne saattavat vaatia JSON.parse() käsittelyn
-    const { question, answer, keywords } = QuizInput.parse(req.body);
+    const { question, answer, keywords, hint } = QuizInput.parse(req.body);
 
     const keywordsArray = Array.isArray(keywords) ? keywords : [];
     
@@ -135,6 +160,7 @@ router.post("/", upload.single("image"), async (req, res, next) => {
         question,
         answer,
         imageUrl, // Lisätty tallennus tietokantaan
+        hint,
         userId: req.user.userId,
         keywords: {
           connectOrCreate: keywordsArray.map((kw) => ({
@@ -159,7 +185,7 @@ router.put("/:id", isOwner,upload.single("image"), async (req, res, next) => {
   try {
     const quizId = Number(req.params.id);
     // Validointi Zod-kirjastolla
-    const { question, answer, keywords } = QuizInput.parse(req.body);   
+    const { question, answer, keywords, hint } = QuizInput.parse(req.body);   
    
     const existingQuiz = await prisma.quiz.findUnique({ where: { id: quizId } });
   
@@ -173,7 +199,7 @@ router.put("/:id", isOwner,upload.single("image"), async (req, res, next) => {
     const updatedQuiz = await prisma.quiz.update({
         where: { id: quizId },
         data: {
-            question, answer, imageUrl,
+            question, answer, imageUrl, hint,
             keywords: {
                 set: [], 
                 connectOrCreate: keywordsArray.map((kw) => ({
@@ -281,6 +307,129 @@ router.post("/:id/play", async (req, res, next) => {
     next(error);
   }
 });
+// Zod-skeema inputin validointiin (vastaa tietokannan rajoitteita)
+const commentSchema = z.object({
+  quizId: z.number().int(),
+  comments: z.string().min(1, "Kommentti ei voi olla tyhjä").max(250, "Kommentti saa olla enintään 250 merkkiä")
+});
 
+//  Validoi VAIN bodyssä tulevan tekstin
+const commentBodySchema = z.object({
+  comments: z.string().min(1).max(250)
+});
+
+// POST /api/questions/:id/comments
+// POST /api/questions/:id/comments
+router.post('/:id/comments', authenticate, async (req, res, next) => {
+  try {
+    const quizId = parseInt(req.params.id);
+    
+    if (isNaN(quizId)) {
+      return res.status(400).json({ error: "Virheellinen ID URL-osoitteessa." });
+    }
+
+    // Validoidaan teksti bodystä (Zod)
+    const { comments } = commentBodySchema.parse(req.body);
+    
+    // Haetaan käyttäjän ID
+    const userId = req.user.userId || req.user.id; 
+
+    // Tarkistetaan onko visa olemassa
+    const quizExists = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quizExists) {
+      throw new NotFoundError("Kysymystä ei löytynyt.");
+    }
+
+    // KORJAUS: Muutettu upsert -> create, koska @@unique([userId, quizId]) on poistettu
+    const comment = await prisma.comment.create({
+      data: {
+        userId: userId,
+        quizId: quizId,
+        comments: comments
+      },
+    });
+
+    res.status(201).json({ message: "Kommentti tallennettu", data: comment });
+  } catch (error) {
+    next(error); 
+  }
+});
+
+// DELETE kommentti
+// Sallittu: Kommentin luoneelle henkilölle TAI  quiz luoneelle henkilölle
+router.delete('/:id/comments', authenticate, async (req, res, next) => {
+  try {
+    const quizId = parseInt(req.params.quizId);
+    const currentUserId = req.user.userId; // Middlewarestasi päätellen käytössä on req.user.userId (eikä req.user.id)
+
+    // 1. Haetaan kommentti ja liitetään mukaan sen kohteena oleva Quiz,
+    // jotta saadaan selville visan luoja (quiz.userId)
+    const comment = await prisma.comment.findUnique({
+      where: {
+        userId_quizId: {
+          userId: currentUserId, // Tämä etsii suoraan kyseisen käyttäjän kommenttia
+          quizId: quizId
+        }
+      },
+      include: {
+        quiz: true // Otetaan quiz-malli mukaan relaation kautta
+      }
+    });
+
+    // 2. Jos kommenttia ei löydy kyseisen käyttäjän tekemänä, tarkistetaan tilanne visan luojan näkökulmasta
+    if (!comment) {
+      // Haetaan kommentti pelkän quizId:n perusteella, jotta voidaan tarkistaa, onko pyynnön tekijä visan omistaja
+      const anyCommentOnQuiz = await prisma.comment.findFirst({
+        where: { quizId: quizId },
+        include: { quiz: true }
+      });
+
+      // Jos kyseiseen visaan ei ole lainkaan kommentteja
+      if (!anyCommentOnQuiz) {
+        throw new NotFoundError("Kommenttia ei löytynyt.");
+      }
+
+      // Jos kommentti on olemassa, mutta pyynnön tekijä EI OLE visan luoja
+      if (anyCommentOnQuiz.quiz.userId !== currentUserId) {
+        throw new ForbiddenError("Voit poistaa vain omia kommenttejasi tai luomiesi visojen kommentteja.");
+      }
+
+      // Jos päästään tänne asti, pyynnön tekijä ON visan luoja, joten hän saa poistaa minkä tahansa kommentin tästä visasta.
+      // Koska mallissasi on @@unique([userId, quizId]), meidän täytyy tietää kenen kommenttia visan luoja on poistamassa.
+      // Sitä varten bodyyn tai queryyn pitäisi välittää poistettavan kommentin tekijän ID (esim. req.body.targetUserId).
+      
+      const targetUserId = req.body.targetUserId ? parseInt(req.body.targetUserId) : null;
+      if (!targetUserId) {
+        return res.status(400).json({ error: "Visan luojan on määritettävä poistettavan kommentin käyttäjän ID (targetUserId) bodyssä." });
+      }
+
+      await prisma.comment.delete({
+        where: {
+          userId_quizId: {
+            userId: targetUserId,
+            quizId: quizId
+          }
+        }
+      });
+
+      return res.status(200).json({ message: "Visan luoja poisti kommentin onnistuneesti." });
+    }
+
+    // 3. Jos kommentti löytyi heti ensimmäisessä vaiheessa (eli käyttäjä on itse kommentin tekijä),
+    // tai käyttäjä sattuu olemaan sekä kommentin tekijä että visan luoja:
+    await prisma.comment.delete({
+      where: {
+        userId_quizId: {
+          userId: currentUserId,
+          quizId: quizId
+        }
+      }
+    });
+
+    res.status(200).json({ message: "Kommentti poistettu onnistuneesti." });
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;

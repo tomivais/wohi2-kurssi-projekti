@@ -4,10 +4,34 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../lib/prisma");
 const SECRET = process.env.JWT_SECRET;
+const path = require("path");
+const multer = require("multer");
 const { ConflictError, UnauthorizedError } = require("../lib/errors");
 
+const storage = multer.diskStorage({
+  destination: path.join(__dirname,"..","..","public","uploads"),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const newName= `${Date.now()}${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, newName);
+  },
+});
+
+const upload = multer({ 
+  storage, 
+fileFilter: (req, file, cb) => {
+  if (file.mimetype.startsWith("image")) {
+    cb(null, true);
+  } 
+  else {
+    cb(new Error("Only image files are allowed"));
+  }
+},
+limits: { fileSize: 5 * 1024 * 1024 }, 
+})
+
 // Post
-router.post("/register", async (req, res, next) => {
+router.post("/register", upload.single("image"),async (req, res, next) => {
     try {
     const { email, password, name } = req.body;
 
@@ -20,6 +44,9 @@ router.post("/register", async (req, res, next) => {
         throw new ConflictError("Email already registered");
     }
 
+    // 2. Määritetään kuvan polku, jos kuva on ladattu
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
@@ -27,6 +54,7 @@ router.post("/register", async (req, res, next) => {
             email,
             password: hashedPassword,
             name,
+            imageUrl,
         },
     });
 
